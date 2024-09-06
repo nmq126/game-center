@@ -1,0 +1,318 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Quizlet-style Quiz</title>
+    <style>
+        * {
+            box-sizing: border-box;
+        }
+        body {
+            font-family: 'Helvetica Neue', Arial, sans-serif;
+            background-color: #4257b2;
+            margin: 0;
+            padding: 0;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            min-height: 100vh;
+            color: #ffffff;
+        }
+        .container {
+            text-align: center;
+            width: 100%;
+            max-width: 600px;
+            padding: 20px;
+        }
+        #start-button {
+            font-size: clamp(16px, 4vw, 18px);
+            padding: 15px 30px;
+            background-color: #ffcd1f;
+            color: #4257b2;
+            border: none;
+            border-radius: 30px;
+            cursor: pointer;
+            transition: background-color 0.3s, transform 0.1s;
+            font-weight: bold;
+            box-shadow: 0 4px 6px rgba(0,0,0,0.1);
+            width: 100%;
+            max-width: 300px;
+        }
+        #start-button:hover {
+            background-color: #ffd747;
+            transform: translateY(-2px);
+        }
+        #start-button:active {
+            transform: translateY(0);
+        }
+        .popup {
+            display: none;
+            position: fixed;
+            top: 50%;
+            left: 50%;
+            transform: translate(-50%, -50%);
+            background-color: white;
+            padding: 20px;
+            border-radius: 15px;
+            box-shadow: 0 4px 20px rgba(0,0,0,0.2);
+            width: 90%;
+            max-width: 500px;
+            color: #303545;
+        }
+        .answer {
+            display: block;
+            width: 100%;
+            padding: 12px;
+            margin: 10px 0;
+            background-color: #f6f7fb;
+            border: 2px solid #e5e8ef;
+            border-radius: 8px;
+            cursor: pointer;
+            transition: background-color 0.3s, border-color 0.3s;
+            font-size: clamp(14px, 3vw, 16px);
+            color: #303545;
+            text-align: left;
+        }
+        .answer:hover {
+            background-color: #e5e8ef;
+            border-color: #4257b2;
+        }
+        #countdown-line {
+            width: 100%;
+            height: 6px;
+            background-color: #e5e8ef;
+            border-radius: 3px;
+            overflow: hidden;
+            margin-top: 20px;
+        }
+        #countdown-line-inner {
+            width: 100%;
+            height: 100%;
+            background-color: #42b255;
+            transition: width 1s linear;
+        }
+        #question {
+            font-size: clamp(18px, 5vw, 24px);
+            margin-bottom: 20px;
+        }
+        #question-counter {
+            position: absolute;
+            top: 10px;
+            right: 10px;
+            font-size: clamp(14px, 3vw, 18px);
+            color: #4257b2;
+        }
+        .result-popup {
+            text-align: center;
+            padding: 20px;
+        }
+        .result-title {
+            font-size: clamp(24px, 6vw, 32px);
+            color: #4257b2;
+            margin-bottom: 20px;
+        }
+        .result-score {
+            font-size: clamp(36px, 10vw, 48px);
+            font-weight: bold;
+            color: #ffcd1f;
+            margin-bottom: 30px;
+        }
+        .result-message {
+            font-size: clamp(16px, 4vw, 18px);
+            margin-bottom: 30px;
+            color: #303545;
+        }
+        .play-again-btn {
+            font-size: clamp(16px, 4vw, 18px);
+            padding: 15px 30px;
+            background-color: #4257b2;
+            color: white;
+            border: none;
+            border-radius: 30px;
+            cursor: pointer;
+            transition: background-color 0.3s, transform 0.1s;
+            font-weight: bold;
+            box-shadow: 0 4px 6px rgba(0,0,0,0.1);
+            width: 100%;
+            max-width: 300px;
+        }
+        .play-again-btn:hover {
+            background-color: #3a4c9f;
+            transform: translateY(-2px);
+        }
+        .play-again-btn:active {
+            transform: translateY(0);
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <button id="start-button" onclick="showPopup()">Start Quiz</button>
+    </div>
+
+    <div id="quizPopup" class="popup">
+        <div id="question-counter"></div>
+        <h2 id="question"></h2>
+        <div id="answers"></div>
+        <div id="countdown-line">
+            <div id="countdown-line-inner"></div>
+        </div>
+    </div>
+
+    <script>
+        const allQuestions = [
+            "What is the capital of France?|London|Berlin|Paris|Madrid|2",
+            "Which planet is known as the Red Planet?|Venus|Mars|Jupiter|Saturn|1",
+            "Who painted the Mona Lisa?|Vincent van Gogh|Pablo Picasso|Leonardo da Vinci|Michelangelo|2",
+            "What is the largest planet in our solar system?|Earth|Mars|Jupiter|Saturn|2",
+            "Which element has the chemical symbol 'O'?|Gold|Silver|Oxygen|Osmium|2",
+            "What is the smallest prime number?|0|1|2|3|2",
+            "Who wrote 'Romeo and Juliet'?|Charles Dickens|William Shakespeare|Jane Austen|Mark Twain|1",
+            "What is the chemical symbol for gold?|Au|Ag|Fe|Cu|0",
+            "Which country is home to the kangaroo?|Brazil|South Africa|Australia|India|2",
+            "What is the largest ocean on Earth?|Atlantic Ocean|Indian Ocean|Arctic Ocean|Pacific Ocean|3"
+        ];
+
+        let quizData = [];
+        let currentQuestion = 0;
+        let timeLeft = 15;
+        let timer;
+        let score = 0;
+        let currentQuestionAnswerOrder = [];
+
+        function loadQuestions() {
+            // Shuffle and select 5 random questions
+            const shuffledQuestions = allQuestions.sort(() => Math.random() - 0.5).slice(0, 5);
+            
+            quizData = shuffledQuestions.map(question => {
+                const [q, ...answers] = question.split('|');
+                return {
+                    question: q,
+                    answers: answers.slice(0, -1),
+                    correctAnswer: parseInt(answers[answers.length - 1])
+                };
+            });
+
+            document.getElementById('start-button').disabled = false;
+        }
+
+        function showPopup() {
+            document.getElementById('quizPopup').style.display = 'block';
+            currentQuestion = 0;
+            score = 0;
+            displayQuestion();
+            startTimer();
+        }
+
+        function displayQuestion() {
+            const question = quizData[currentQuestion];
+            document.getElementById('question').textContent = question.question;
+            document.getElementById('question-counter').textContent = `Question ${currentQuestion + 1}/5`;
+            const answersDiv = document.getElementById('answers');
+            answersDiv.innerHTML = '';
+            
+            // Create an array of indices and shuffle it
+            currentQuestionAnswerOrder = [0, 1, 2, 3].sort(() => Math.random() - 0.5);
+            
+            currentQuestionAnswerOrder.forEach((originalIndex, shuffledIndex) => {
+                const button = document.createElement('button');
+                button.textContent = question.answers[originalIndex];
+                button.classList.add('answer');
+                button.onclick = () => checkAnswer(shuffledIndex);
+                answersDiv.appendChild(button);
+            });
+        }
+
+        function startTimer() {
+            timeLeft = 15;
+            updateCountdown();
+            timer = setInterval(() => {
+                timeLeft--;
+                updateCountdown();
+                if (timeLeft <= 0) {
+                    clearInterval(timer);
+                    setTimeout(nextQuestion, 1000); // Delay next question
+                }
+            }, 1000);
+        }
+
+        function updateCountdown() {
+            const percentage = (timeLeft / 15) * 100;
+            document.getElementById('countdown-line-inner').style.width = `${percentage}%`;
+        }
+
+        function checkAnswer(index) {
+            clearInterval(timer);
+            const question = quizData[currentQuestion];
+            const buttons = document.querySelectorAll('.answer');
+            
+            buttons.forEach((button, i) => {
+                button.disabled = true;
+                if (currentQuestionAnswerOrder[i] === question.correctAnswer) {
+                    button.style.backgroundColor = '#4CAF50';
+                    button.style.color = 'white';
+                } else if (i === index && currentQuestionAnswerOrder[i] !== question.correctAnswer) {
+                    button.style.backgroundColor = '#f44336';
+                    button.style.color = 'white';
+                }
+            });
+
+            if (currentQuestionAnswerOrder[index] === question.correctAnswer) {
+                score++;
+            }
+
+            setTimeout(nextQuestion, 1000); // Delay next question
+        }
+
+        function nextQuestion() {
+            currentQuestion++;
+            if (currentQuestion < 5) {
+                displayQuestion();
+                startTimer();
+            } else {
+                showResult();
+            }
+        }
+
+        function showResult() {
+            clearInterval(timer);
+            const resultMessage = getResultMessage(score);
+            document.getElementById('quizPopup').innerHTML = `
+                <div class="result-popup">
+                    <h2 class="result-title">Quiz Complete!</h2>
+                    <div class="result-score">${score} / 5</div>
+                    <p class="result-message">${resultMessage}</p>
+                    <button class="play-again-btn" onclick="resetQuiz()">Play Again</button>
+                </div>
+            `;
+        }
+
+        function getResultMessage(score) {
+            if (score === 5) return "Perfect score! You're a quiz master!";
+            if (score >= 4) return "Great job! You're almost there!";
+            if (score >= 3) return "Good effort! Keep practicing!";
+            if (score >= 2) return "Not bad, but there's room for improvement!";
+            return "Don't worry, practice makes perfect!";
+        }
+
+        function resetQuiz() {
+            currentQuestion = 0;
+            score = 0;
+            document.getElementById('quizPopup').style.display = 'none';
+            document.getElementById('quizPopup').innerHTML = `
+                <div id="question-counter"></div>
+                <h2 id="question"></h2>
+                <div id="answers"></div>
+                <div id="countdown-line">
+                    <div id="countdown-line-inner"></div>
+                </div>
+            `;
+            loadQuestions(); // Reload questions for a new set
+        }
+
+        // Load questions when the page loads
+        window.onload = loadQuestions;
+    </script>
+</body>
+</html>
